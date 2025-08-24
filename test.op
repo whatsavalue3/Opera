@@ -1,0 +1,4 @@
+=(if($A){$B}else{$C})(A?B:C);
+=(if($A){$B})(A?B:(;));
+=(for($A;$B;$C){$D})(A;_:;if(B){D;continue:C;_;}break:);
+=(while($A){$B})(continue:;if(A){B;continue;}break:);

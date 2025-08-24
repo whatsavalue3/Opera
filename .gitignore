@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/opera
+opera.so
+opera.dylib
+opera.dll
+opera.a
+opera.lib
+opera-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
