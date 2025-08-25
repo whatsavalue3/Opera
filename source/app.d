@@ -2,6 +2,7 @@ import std.stdio;
 import std.file;
 import std.conv;
 import std.ascii;
+import std.typecons;
 
 enum TokenType
 {
@@ -163,7 +164,9 @@ enum ExpressionType
 	Immediate,
 	Name,
 	Add,
-	Sub
+	Sub,
+	Call,
+	Print,
 }
 
 struct Expression
@@ -172,6 +175,7 @@ struct Expression
 	ExpressionType type;
 	string value;
 	Expression[] inner;
+	Expression[] call;
 }
 
 struct Macro
@@ -328,21 +332,35 @@ Function ParseFunction(Lexer l)
 	Function f;
 	f.type = ParseType(l);
 	f.name = l.next().name;
-	Token t = l.next();
-	assert(t.type == TokenType.PAREN_LEFT);
-	while(t.type != TokenType.PAREN_RIGHT)
+	assert(l.next().type == TokenType.PAREN_LEFT);
+	while(!l.optional(TokenType.PAREN_RIGHT))
 	{
 		Place arg = ParsePlace(l);
 		f.args ~= arg;
+		l.optional(TokenType.COMMA);
+	}
+	f.inner = ParseExpression(l);
+	functions[f.name] = f;
+	return f;
+}
+
+Expression ParseCall(Lexer l, Expression tocall)
+{
+	Expression e;
+	e.type = ExpressionType.Call;
+	e.exists = true;
+	Token t;
+	while(t.type != TokenType.PAREN_RIGHT)
+	{
+		e.inner ~= ParseExpression(l);
 		t = l.next();
 		if(t.type != TokenType.COMMA)
 		{
 			assert(t.type == TokenType.PAREN_RIGHT);
 		}
 	}
-	f.inner = ParseExpression(l);
-	functions[f.name] = f;
-	return f;
+	e.call ~= tocall;
+	return e;
 }
 
 
@@ -370,18 +388,35 @@ Expression ExpressionSubtract(Expression a, Expression b)
 	assert(0);
 }
 
-Expression ExecuteExpression(Expression e)
+Expression ExecuteExpression(Expression e, Place[string] scop)
 {
 	switch(e.type)
 	{
 		case ExpressionType.Name:
-			return ExecuteExpression(places[e.value].default_value);
+			return ExecuteExpression(scop[e.value].default_value, scop);
+			break;
+		case ExpressionType.Print:
+			Expression r = ExecuteExpression(e.inner[0], scop);
+			writeln(r);
+			return r;
 			break;
 		case ExpressionType.Sub:
-			return ExpressionSubtract(ExecuteExpression(e.inner[0]),ExecuteExpression(e.inner[1]));
+			return ExpressionSubtract(ExecuteExpression(e.inner[0], scop),ExecuteExpression(e.inner[1], scop));
+			break;
+		case ExpressionType.Call:
+			Expression f = e.call[0];
+			
+			Place[string] newscop = scop;
+			foreach(i, value; functions[f.value].args)
+			{
+				newscop[value.name] = value;
+				newscop[value.name].default_value = e.inner[i];
+			
+			}
+			return ExecuteExpression(functions[f.value].inner, newscop);
 			break;
 		default:
-			writeln(e);
+			//writeln(e);
 			return e;
 			break;
 	}
@@ -424,16 +459,17 @@ Expression ParsePrefixExpression(Lexer l)
 				if(ex.exists)
 				{
 					stack[scopeindex] ~= ex;
+					e = ex;
 				}
 			}
 			break;
 		case TokenType.PERCENT:
-			ParseExpression(l);
-			writeln(stack[scopeindex]);
+			e = Expression(exists:true, type:ExpressionType.Print, inner:[ParseExpression(l)]);
+			//writeln(stack[scopeindex]);
 			break;
-		case TokenType.CARET:
-			e = ExecuteExpression(ParseExpression(l));
-			break;
+		//case TokenType.CARET:
+		//	e = ExecuteExpression(ParseExpression(l),places);
+		//	break;
 		default:
 			writeln(t);
 			assert(0);
@@ -464,6 +500,9 @@ Expression ParseExpression(Lexer l)
 			e.inner ~= ParseExpression(l);
 			e.exists = true;
 			break;
+		case TokenType.PAREN_LEFT:
+			e = ParseCall(l, e);
+			break;
 		case TokenType.SEMICOLON:
 			e.exists = false;
 			break;
@@ -491,6 +530,7 @@ void main(string[] args)
 			stack[scopeindex] ~= e;
 		}
 	}
-	writeln(places);
-	writeln(functions);
+	ExecuteExpression(functions["main"].inner,places);
+	//writeln(places);
+	//writeln(functions);
 }

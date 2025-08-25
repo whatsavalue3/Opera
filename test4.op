@@ -1,5 +1,13 @@
 @#16 buh = 12;
 @#32 hii = buh-654;
-%(^hii);
+%hii;
 
-&#32 testfunc(#32 argo) ();
+&#32 testfunc(#32 argo)
+(
+	%argo
+)
+
+&#32 main()
+(
+	testfunc(123)
+)
