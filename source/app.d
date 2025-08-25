@@ -390,6 +390,18 @@ Expression ExpressionSubtract(Expression a, Expression b)
 	assert(0);
 }
 
+Expression ExpressionAdd(Expression a, Expression b)
+{
+	if(a.type == ExpressionType.Immediate)
+	{
+		if(b.type == ExpressionType.Immediate)
+		{
+			return Expression(exists:true,type:ExpressionType.Immediate,value:to!string(to!long(a.value) + to!long(b.value)));
+		}
+	}
+	assert(0);
+}
+
 Expression ExecuteExpression(Expression e, Place[string] scop)
 {
 	switch(e.type)
@@ -404,6 +416,9 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			break;
 		case ExpressionType.Sub:
 			return ExpressionSubtract(ExecuteExpression(e.inner[0], scop),ExecuteExpression(e.inner[1], scop));
+			break;
+		case ExpressionType.Add:
+			return ExpressionAdd(ExecuteExpression(e.inner[0], scop),ExecuteExpression(e.inner[1], scop));
 			break;
 		case ExpressionType.Call:
 			Expression f = e.call[0];
@@ -423,6 +438,7 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			return r;
 			break;
 		case ExpressionType.Group:
+			Expression toreturn = Expression(exists:false);
 			scopeindex++;
 			foreach(ei; e.inner)
 			{
@@ -430,10 +446,11 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 				if(r.exists)
 				{
 					stack[scopeindex] ~= r;
+					toreturn = r;
 				}
 			}
 			scopeindex--;
-			return e;
+			return toreturn;
 			break;
 		default:
 			//writeln(e);

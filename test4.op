@@ -2,9 +2,14 @@
 @#32 hii = buh-654;
 %hii;
 
+&! testfunca(#32 arga, #32 argb)
+(
+	%(arga + argb);
+)
+
 &! testfunc(#32 argo)
 (
-	%argo
+	testfunca(argo, 799);
 )
 
 &! main()
