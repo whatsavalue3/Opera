@@ -264,6 +264,15 @@ struct Place
 	Expression default_value;
 }
 
+struct Function
+{
+	string name;
+	Type type;
+	Place[] args;
+	Expression inner;
+}
+
+
 Type ParseType(Lexer l)
 {
 	Token token = l.next();
@@ -291,7 +300,6 @@ Place ParsePlace(Lexer l)
 	{
 		p.default_value = ParseExpression(l);
 	}
-	places[p.name] = p;
 	return p;
 }
 
@@ -313,9 +321,35 @@ Expression ParseName(Lexer l, string name)
 	return e;
 }
 
+
+
+Function ParseFunction(Lexer l)
+{
+	Function f;
+	f.type = ParseType(l);
+	f.name = l.next().name;
+	Token t = l.next();
+	assert(t.type == TokenType.PAREN_LEFT);
+	while(t.type != TokenType.PAREN_RIGHT)
+	{
+		Place arg = ParsePlace(l);
+		f.args ~= arg;
+		t = l.next();
+		if(t.type != TokenType.COMMA)
+		{
+			assert(t.type == TokenType.PAREN_RIGHT);
+		}
+	}
+	f.inner = ParseExpression(l);
+	functions[f.name] = f;
+	return f;
+}
+
+
 Expression[][1024] stack;
 ulong scopeindex = 0;
 Place[string] places;
+Function[string] functions;
 
 Expression PopStack()
 {
@@ -363,7 +397,11 @@ Expression ParsePrefixExpression(Lexer l)
 			ParseMacro(l);
 			break;
 		case TokenType.AT:
-			ParsePlace(l);
+			Place p = ParsePlace(l);
+			places[p.name] = p;
+			break;
+		case TokenType.AMPERSAND:
+			ParseFunction(l);
 			break;
 		case TokenType.NUMBER:
 			e = ParseNumber(l, t.name);
@@ -454,4 +492,5 @@ void main(string[] args)
 		}
 	}
 	writeln(places);
+	writeln(functions);
 }
