@@ -1,5 +1,6 @@
 import std.stdio;
 import std.file;
+import std.conv;
 import std.ascii;
 
 enum TokenType
@@ -290,6 +291,7 @@ Place ParsePlace(Lexer l)
 	{
 		p.default_value = ParseExpression(l);
 	}
+	places[p.name] = p;
 	return p;
 }
 
@@ -313,13 +315,42 @@ Expression ParseName(Lexer l, string name)
 
 Expression[][1024] stack;
 ulong scopeindex = 0;
-Place[] places;
+Place[string] places;
 
 Expression PopStack()
 {
 	Expression top = stack[scopeindex][$-1];
 	stack[scopeindex].length--;
 	return top;
+}
+
+Expression ExpressionSubtract(Expression a, Expression b)
+{
+	if(a.type == ExpressionType.Immediate)
+	{
+		if(b.type == ExpressionType.Immediate)
+		{
+			return Expression(exists:true,type:ExpressionType.Immediate,value:to!string(to!long(a.value) - to!long(b.value)));
+		}
+	}
+	assert(0);
+}
+
+Expression ExecuteExpression(Expression e)
+{
+	switch(e.type)
+	{
+		case ExpressionType.Name:
+			return ExecuteExpression(places[e.value].default_value);
+			break;
+		case ExpressionType.Sub:
+			return ExpressionSubtract(ExecuteExpression(e.inner[0]),ExecuteExpression(e.inner[1]));
+			break;
+		default:
+			writeln(e);
+			return e;
+			break;
+	}
 }
 
 Expression ParsePrefixExpression(Lexer l)
@@ -332,7 +363,7 @@ Expression ParsePrefixExpression(Lexer l)
 			ParseMacro(l);
 			break;
 		case TokenType.AT:
-			places ~= ParsePlace(l);
+			ParsePlace(l);
 			break;
 		case TokenType.NUMBER:
 			e = ParseNumber(l, t.name);
@@ -361,6 +392,9 @@ Expression ParsePrefixExpression(Lexer l)
 		case TokenType.PERCENT:
 			ParseExpression(l);
 			writeln(stack[scopeindex]);
+			break;
+		case TokenType.CARET:
+			e = ExecuteExpression(ParseExpression(l));
 			break;
 		default:
 			writeln(t);
