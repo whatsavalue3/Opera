@@ -10,7 +10,7 @@ enum TokenType
 	NUMBER,
 	
 	TICK,
-	TYLDE,
+	TILDE,
 	EXCLAMATION,
 	AT,
 	HASH,
@@ -49,7 +49,7 @@ struct Token
 
 TokenType[char] charToToken = [
 	'`': TokenType.TICK,
-	'~': TokenType.TYLDE,
+	'~': TokenType.TILDE,
 	'!': TokenType.EXCLAMATION,
 	'@': TokenType.AT,
 	'#': TokenType.HASH,
@@ -160,7 +160,9 @@ class TokenGroup
 enum ExpressionType
 {
 	Immediate,
-	Add
+	Name,
+	Add,
+	Sub
 }
 
 struct Expression
@@ -300,6 +302,15 @@ Expression ParseNumber(Lexer l, string name)
 	return e;
 }
 
+Expression ParseName(Lexer l, string name)
+{
+	Expression e;
+	e.type = ExpressionType.Name;
+	e.value = name;
+	e.exists = true;
+	return e;
+}
+
 Expression[][1024] stack;
 ulong scopeindex = 0;
 Place[] places;
@@ -325,6 +336,9 @@ Expression ParsePrefixExpression(Lexer l)
 			break;
 		case TokenType.NUMBER:
 			e = ParseNumber(l, t.name);
+			break;
+		case TokenType.NAME:
+			e = ParseName(l, t.name);
 			break;
 		case TokenType.PAREN_LEFT:
 			scopeindex++;
@@ -371,6 +385,13 @@ Expression ParseExpression(Lexer l)
 			e.inner ~= ParseExpression(l);
 			e.exists = true;
 			break;
+		case TokenType.MINUS:
+			Expression olde = e;
+			e.type = ExpressionType.Sub;
+			e.inner ~= olde;
+			e.inner ~= ParseExpression(l);
+			e.exists = true;
+			break;
 		case TokenType.SEMICOLON:
 			e.exists = false;
 			break;
@@ -398,4 +419,5 @@ void main(string[] args)
 			stack[scopeindex] ~= e;
 		}
 	}
+	writeln(places);
 }
