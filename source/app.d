@@ -167,6 +167,8 @@ enum ExpressionType
 	Sub,
 	Call,
 	Print,
+	Discard,
+	Group,
 }
 
 struct Expression
@@ -287,7 +289,7 @@ Type ParseType(Lexer l)
 	}
 	else
 	{
-		assert(0);
+		assert(token.type == TokenType.EXCLAMATION);
 	}
 	return type;
 }
@@ -415,6 +417,24 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			}
 			return ExecuteExpression(functions[f.value].inner, newscop);
 			break;
+		case ExpressionType.Discard:
+			Expression r = ExecuteExpression(e.inner[0], scop);
+			r.exists = false;
+			return r;
+			break;
+		case ExpressionType.Group:
+			scopeindex++;
+			foreach(ei; e.inner)
+			{
+				Expression r = ExecuteExpression(ei, scop);
+				if(r.exists)
+				{
+					stack[scopeindex] ~= r;
+				}
+			}
+			scopeindex--;
+			return e;
+			break;
 		default:
 			//writeln(e);
 			return e;
@@ -445,23 +465,19 @@ Expression ParsePrefixExpression(Lexer l)
 			e = ParseName(l, t.name);
 			break;
 		case TokenType.PAREN_LEFT:
-			scopeindex++;
 			while(!l.atEnd())
 			{
 				if(l.optional(TokenType.PAREN_RIGHT))
 				{
-					stack[scopeindex-1] ~= stack[scopeindex];
-					stack[scopeindex].length = 0;
-					scopeindex--;
 					break;
 				}
 				Expression ex = ParseExpression(l);
 				if(ex.exists)
 				{
-					stack[scopeindex] ~= ex;
-					e = ex;
+					e.inner ~= ex;
 				}
 			}
+			e.type = ExpressionType.Group;
 			break;
 		case TokenType.PERCENT:
 			e = Expression(exists:true, type:ExpressionType.Print, inner:[ParseExpression(l)]);
@@ -479,7 +495,7 @@ Expression ParsePrefixExpression(Lexer l)
 	return e;
 }
 
-Expression ParseExpression(Lexer l)
+Expression ParseInfixExpression(Lexer l)
 {
 	Expression e = ParsePrefixExpression(l);
 	ulong origi = l.i;
@@ -503,8 +519,26 @@ Expression ParseExpression(Lexer l)
 		case TokenType.PAREN_LEFT:
 			e = ParseCall(l, e);
 			break;
+		default:
+			l.i = origi;
+			break;
+	}
+	return e;
+}
+
+Expression ParseExpression(Lexer l)
+{
+	Expression e = ParseInfixExpression(l);
+	ulong origi = l.i;
+	Token t = l.next();
+	switch(t.type)
+	{
 		case TokenType.SEMICOLON:
-			e.exists = false;
+			Expression discard;
+			discard.type = ExpressionType.Discard;
+			discard.inner ~= e;
+			discard.exists = true;
+			return discard;
 			break;
 		default:
 			l.i = origi;
@@ -512,6 +546,7 @@ Expression ParseExpression(Lexer l)
 	}
 	return e;
 }
+
 
 void main(string[] args)
 {

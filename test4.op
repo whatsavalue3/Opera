@@ -2,12 +2,13 @@
 @#32 hii = buh-654;
 %hii;
 
-&#32 testfunc(#32 argo)
+&! testfunc(#32 argo)
 (
 	%argo
 )
 
-&#32 main()
+&! main()
 (
-	testfunc(123)
+	testfunc(123);
+	testfunc(456);
 )
