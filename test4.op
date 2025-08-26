@@ -2,18 +2,24 @@
 @#32 hii = buh-654;
 %hii;
 
-&! testfunca(#32 arga, #32 argb)
+$ int #32;
+$ void !;
+
+& void comprint(int a) (%a)
+
+& void testfunca(int arga, int argb)
 (
-	%(arga + argb);
+	(arga - argb) ? (0;) : comprint(arga + argb);
 )
 
-&! testfunc(#32 argo)
+& void testfunc(int argo)
 (
 	testfunca(argo, 799);
 )
 
-&! main()
+& void main()
 (
 	testfunc(123);
+	testfunc(799);
 	testfunc(456);
 )

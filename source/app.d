@@ -169,6 +169,7 @@ enum ExpressionType
 	Print,
 	Discard,
 	Group,
+	Ternary,
 }
 
 struct Expression
@@ -258,7 +259,8 @@ Macro ParseMacro(Lexer l)
 struct Type
 {
 	Expression size;
-	
+	bool isref;
+	string reference;
 }
 
 
@@ -279,6 +281,7 @@ struct Function
 }
 
 
+
 Type ParseType(Lexer l)
 {
 	Token token = l.next();
@@ -286,15 +289,16 @@ Type ParseType(Lexer l)
 	if(token.type == TokenType.HASH)
 	{
 		type.size = ParseExpression(l);
+		return type;
 	}
-	else
+	else if(token.type == TokenType.EXCLAMATION)
 	{
-		assert(token.type == TokenType.EXCLAMATION);
+		return type;
 	}
+	type.isref = true;
+	type.reference = token.name;
 	return type;
 }
-
-
 
 Place ParsePlace(Lexer l)
 {
@@ -307,6 +311,15 @@ Place ParsePlace(Lexer l)
 		p.default_value = ParseExpression(l);
 	}
 	return p;
+}
+
+Type ParseGroup(Lexer l)
+{
+	Type t;
+	string name = l.next().name;
+	t = ParseType(l);
+	types[name] = t;
+	return t;
 }
 
 Expression ParseNumber(Lexer l, string name)
@@ -370,6 +383,7 @@ Expression[][1024] stack;
 ulong scopeindex = 0;
 Place[string] places;
 Function[string] functions;
+Type[string] types;
 
 Expression PopStack()
 {
@@ -400,6 +414,11 @@ Expression ExpressionAdd(Expression a, Expression b)
 		}
 	}
 	assert(0);
+}
+
+bool IsTruthy(string value)
+{
+	return value != "0";
 }
 
 Expression ExecuteExpression(Expression e, Place[string] scop)
@@ -452,6 +471,20 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			scopeindex--;
 			return toreturn;
 			break;
+		case ExpressionType.Ternary:
+			Expression r = ExecuteExpression(e.inner[0], scop);
+			if(IsTruthy(r.value))
+			{
+				return ExecuteExpression(e.inner[1], scop);
+			}
+			else if(e.inner.length == 3)
+			{
+				return ExecuteExpression(e.inner[2], scop);
+			}
+			r.exists = false;
+			r.type = ExpressionType.Discard;
+			return r;
+			break;
 		default:
 			//writeln(e);
 			return e;
@@ -474,6 +507,9 @@ Expression ParsePrefixExpression(Lexer l)
 			break;
 		case TokenType.AMPERSAND:
 			ParseFunction(l);
+			break;
+		case TokenType.DOLLAR:
+			ParseGroup(l);
 			break;
 		case TokenType.NUMBER:
 			e = ParseNumber(l, t.name);
@@ -533,6 +569,18 @@ Expression ParseInfixExpression(Lexer l)
 			e.inner ~= ParseExpression(l);
 			e.exists = true;
 			break;
+		case TokenType.QUESTION:
+			Expression olde = e;
+			e.type = ExpressionType.Ternary;
+			e.inner.length = 0;
+			e.inner ~= olde;
+			e.inner ~= ParseExpression(l);
+			if(l.optional(TokenType.COLON))
+			{
+				e.inner ~= ParseExpression(l);
+			}
+			e.exists = true;
+			break;
 		case TokenType.PAREN_LEFT:
 			e = ParseCall(l, e);
 			break;
@@ -563,6 +611,38 @@ Expression ParseExpression(Lexer l)
 	}
 	return e;
 }
+/*
+void WalkExpression(Expression e, void action(Expression))
+{
+	action(e);
+	foreach(inner; e.inner)
+	{
+		WalkExpression(inner, action);
+	}
+}
+
+void DerefTypes(Expression e)
+{
+	
+}
+*/
+void DerefAllTypes()
+{
+	foreach(ref place; places)
+	{
+		if(place.type.isref)
+		{
+			place.type = types[place.type.reference];
+		}
+	}
+	foreach(ref func; functions)
+	{
+		if(func.type.isref)
+		{
+			func.type = types[func.type.reference];
+		}
+	}
+}
 
 
 void main(string[] args)
@@ -576,12 +656,9 @@ void main(string[] args)
 	l.code = cast(string)read(args[1]);
 	while(!l.atEnd())
 	{
-		Expression e = ParseExpression(l);
-		if(e.exists)
-		{
-			stack[scopeindex] ~= e;
-		}
+		ParseExpression(l);
 	}
+	DerefAllTypes();
 	ExecuteExpression(functions["main"].inner,places);
 	//writeln(places);
 	//writeln(functions);
