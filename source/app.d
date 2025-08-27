@@ -3,6 +3,7 @@ import std.file;
 import std.conv;
 import std.ascii;
 import std.typecons;
+import std.algorithm;
 
 enum TokenType
 {
@@ -40,6 +41,8 @@ enum TokenType
 	BRACKET_RIGHT,
 	BRACE_LEFT,
 	BRACE_RIGHT,
+	
+	DOUBLE_EQUALS,
 }
 
 struct Token
@@ -48,6 +51,10 @@ struct Token
 	ulong pos;
 	string name;
 }
+
+TokenType[string] stringToToken = [
+	"==": TokenType.DOUBLE_EQUALS,
+];
 
 TokenType[char] charToToken = [
 	'`': TokenType.TICK,
@@ -81,6 +88,11 @@ TokenType[char] charToToken = [
 	'}': TokenType.BRACE_RIGHT,
 ];
 
+bool isAlphaUnder(char c)
+{
+	return c == '_' || isAlpha(c);
+}
+
 class Lexer
 {
 	string code;
@@ -96,14 +108,22 @@ class Lexer
 		{
 			i++;
 		}
+		foreach(tok, type; stringToToken)
+		{
+			if(code[i..$].startsWith(tok))
+			{
+				i+= tok.length;
+				return Token(type:type,pos:i,name:code[i-tok.length..i]);
+			}
+		}
 		if(code[i] in charToToken)
 		{
 			return Token(type:charToToken[code[i]],pos:i,name:code[i..++i]);
 		}
-		if(isAlpha(code[i]))
+		if(isAlphaUnder(code[i]))
 		{
 			ulong first = i;
-			while(isAlpha(code[i]))
+			while(isAlphaUnder(code[i]))
 			{
 				i++;
 			}
@@ -170,6 +190,8 @@ enum ExpressionType
 	Discard,
 	Group,
 	Ternary,
+	Equality,
+	Function,
 }
 
 struct Expression
@@ -179,6 +201,7 @@ struct Expression
 	string value;
 	Expression[] inner;
 	Expression[] call;
+	Function[] func;
 }
 
 struct Macro
@@ -342,7 +365,7 @@ Expression ParseName(Lexer l, string name)
 
 
 
-Function ParseFunction(Lexer l)
+Expression ParseFunction(Lexer l)
 {
 	Function f;
 	f.type = ParseType(l);
@@ -355,8 +378,12 @@ Function ParseFunction(Lexer l)
 		l.optional(TokenType.COMMA);
 	}
 	f.inner = ParseExpression(l);
-	functions[f.name] = f;
-	return f;
+	Expression e;
+	e.exists = true;
+	e.type = ExpressionType.Function;
+	e.func ~= f;
+	//functions[f.name] = f;
+	return e;
 }
 
 Expression ParseCall(Lexer l, Expression tocall)
@@ -416,6 +443,18 @@ Expression ExpressionAdd(Expression a, Expression b)
 	assert(0);
 }
 
+Expression ExpressionEquality(Expression a, Expression b)
+{
+	if(a.type == ExpressionType.Immediate)
+	{
+		if(b.type == ExpressionType.Immediate)
+		{
+			return Expression(exists:true,type:ExpressionType.Immediate,value:to!string(a.value == b.value ? 1 : 0));
+		}
+	}
+	assert(0);
+}
+
 bool IsTruthy(string value)
 {
 	return value != "0";
@@ -438,6 +477,9 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			break;
 		case ExpressionType.Add:
 			return ExpressionAdd(ExecuteExpression(e.inner[0], scop),ExecuteExpression(e.inner[1], scop));
+			break;
+		case ExpressionType.Equality:
+			return ExpressionEquality(ExecuteExpression(e.inner[0], scop),ExecuteExpression(e.inner[1], scop));
 			break;
 		case ExpressionType.Call:
 			Expression f = e.call[0];
@@ -485,6 +527,11 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			r.type = ExpressionType.Discard;
 			return r;
 			break;
+		case ExpressionType.Function:
+			functions[e.func[0].name] = e.func[0];
+			Expression r;
+			return r;
+			break;
 		default:
 			//writeln(e);
 			return e;
@@ -494,6 +541,7 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 
 Expression ParsePrefixExpression(Lexer l)
 {
+	ulong origi = l.i;
 	Expression e;
 	Token t = l.next();
 	switch(t.type)
@@ -506,7 +554,7 @@ Expression ParsePrefixExpression(Lexer l)
 			places[p.name] = p;
 			break;
 		case TokenType.AMPERSAND:
-			ParseFunction(l);
+			e = ParseFunction(l);
 			break;
 		case TokenType.DOLLAR:
 			ParseGroup(l);
@@ -540,8 +588,7 @@ Expression ParsePrefixExpression(Lexer l)
 		//	e = ExecuteExpression(ParseExpression(l),places);
 		//	break;
 		default:
-			writeln(t);
-			assert(0);
+			l.i = origi;
 			break;
 	}
 	
@@ -558,6 +605,7 @@ Expression ParseInfixExpression(Lexer l)
 		case TokenType.PLUS:
 			Expression olde = e;
 			e.type = ExpressionType.Add;
+			e.inner.length = 0;
 			e.inner ~= olde;
 			e.inner ~= ParseExpression(l);
 			e.exists = true;
@@ -565,6 +613,7 @@ Expression ParseInfixExpression(Lexer l)
 		case TokenType.MINUS:
 			Expression olde = e;
 			e.type = ExpressionType.Sub;
+			e.inner.length = 0;
 			e.inner ~= olde;
 			e.inner ~= ParseExpression(l);
 			e.exists = true;
@@ -579,6 +628,14 @@ Expression ParseInfixExpression(Lexer l)
 			{
 				e.inner ~= ParseExpression(l);
 			}
+			e.exists = true;
+			break;
+		case TokenType.DOUBLE_EQUALS:
+			Expression olde = e;
+			e.type = ExpressionType.Equality;
+			e.inner.length = 0;
+			e.inner ~= olde;
+			e.inner ~= ParseExpression(l);
 			e.exists = true;
 			break;
 		case TokenType.PAREN_LEFT:
@@ -644,6 +701,15 @@ void DerefAllTypes()
 	}
 }
 
+Expression[] program;
+
+void FunctionPass()
+{
+	foreach(e; program)
+	{
+		ExecuteExpression(e, places);
+	}
+}
 
 void main(string[] args)
 {
@@ -656,8 +722,9 @@ void main(string[] args)
 	l.code = cast(string)read(args[1]);
 	while(!l.atEnd())
 	{
-		ParseExpression(l);
+		program ~= ParseExpression(l);
 	}
+	FunctionPass();
 	DerefAllTypes();
 	ExecuteExpression(functions["main"].inner,places);
 	//writeln(places);

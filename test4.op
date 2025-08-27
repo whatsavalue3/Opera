@@ -1,25 +1,35 @@
-@#16 buh = 12;
-@#32 hii = buh-654;
-%hii;
+@#8 CPU_BITS = 16;
 
-$ int #32;
+$ int #((CPU_BITS == 32) ? 32 : 16);
 $ void !;
 
 & void comprint(int a) (%a)
 
 & void testfunca(int arga, int argb)
 (
-	(arga - argb) ? (0;) : comprint(arga + argb);
+	((arga - argb) - argb) ? comprint(arga + argb) : comprint(arga - argb);
 )
 
 & void testfunc(int argo)
 (
-	testfunca(argo, 799);
-)
+	testfunca(argo, 123);
+);;
 
-& void main()
+(CPU_BITS == 16) ?
 (
-	testfunc(123);
-	testfunc(799);
-	testfunc(456);
+	& void main()
+	(
+		testfunc(123);
+		testfunc(246);
+		testfunc(456);
+	)
+)
+:
+(
+	& void main()
+	(
+		testfunc(246);
+		testfunc(246);
+		testfunc(246);
+	)
 )
