@@ -3,7 +3,12 @@
 $ int #((CPU_BITS == 32) ? 32 : 16);
 $ void !;
 
-& void comprint(int a) (%a);;
+$ GroupType
+{
+	@#32 Hi;
+};
+
+& void comprint(int a) (%a)
 
 & void testfunca(int arga, int argb)
 (

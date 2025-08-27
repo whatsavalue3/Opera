@@ -192,6 +192,7 @@ enum ExpressionType
 	Ternary,
 	Equality,
 	Function,
+	Place,
 }
 
 struct Expression
@@ -202,6 +203,7 @@ struct Expression
 	Expression[] inner;
 	Expression[] call;
 	Function[] func;
+	Place[] place;
 }
 
 struct Macro
@@ -282,6 +284,7 @@ Macro ParseMacro(Lexer l)
 struct Type
 {
 	Expression size;
+	Expression[] group;
 	bool isref;
 	string reference;
 }
@@ -299,7 +302,7 @@ struct Function
 {
 	string name;
 	Type type;
-	Place[] args;
+	Expression[] args;
 	Expression inner;
 }
 
@@ -318,12 +321,24 @@ Type ParseType(Lexer l)
 	{
 		return type;
 	}
+	else if(token.type == TokenType.BRACE_LEFT)
+	{
+		ulong origi = l.i;
+		while(token.type != TokenType.BRACE_RIGHT)
+		{
+			l.i = origi;
+			type.group ~= ParseExpression(l);
+			origi = l.i;
+			token = l.next();
+		}
+		return type;
+	}
 	type.isref = true;
 	type.reference = token.name;
 	return type;
 }
 
-Place ParsePlace(Lexer l)
+Expression ParsePlace(Lexer l)
 {
 	Place p;
 	p.constant = l.optional(TokenType.EXCLAMATION);
@@ -333,7 +348,12 @@ Place ParsePlace(Lexer l)
 	{
 		p.default_value = ParseExpression(l);
 	}
-	return p;
+	Expression e;
+	e.exists = true;
+	e.type = ExpressionType.Place;
+	e.place ~= p;
+	e.value = p.name;
+	return e;
 }
 
 Type ParseGroup(Lexer l)
@@ -373,7 +393,7 @@ Expression ParseFunction(Lexer l)
 	assert(l.next().type == TokenType.PAREN_LEFT);
 	while(!l.optional(TokenType.PAREN_RIGHT))
 	{
-		Place arg = ParsePlace(l);
+		Expression arg = ParsePlace(l);
 		f.args ~= arg;
 		l.optional(TokenType.COMMA);
 	}
@@ -460,7 +480,7 @@ bool IsTruthy(Expression e)
 	return e.type == ExpressionType.Immediate && e.value != "0";
 }
 
-Expression ExecuteExpression(Expression e, Place[string] scop)
+Expression ExecuteExpression(Expression e, ref Place[string] scop)
 {
 	switch(e.type)
 	{
@@ -487,10 +507,19 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			Place[string] newscop = scop;
 			foreach(i, value; functions[f.value].args)
 			{
-				newscop[value.name] = value;
-				newscop[value.name].default_value = e.inner[i];
-			
+				Expression evalue = ExecuteExpression(value,newscop);
+				newscop[value.value].default_value = e.inner[i];
+				/*if(evalue.type == ExpressionType.Place)
+				{
+					newscop[evalue.place[0].name] = evalue.place[0];
+				}
+				else
+				{
+					assert(0);
+				}
+				*/
 			}
+//			writeln(newscop);
 			return ExecuteExpression(functions[f.value].inner, newscop);
 			break;
 		case ExpressionType.Discard:
@@ -532,6 +561,11 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			Expression r;
 			return r;
 			break;
+		case ExpressionType.Place:
+			scop[e.place[0].name] = e.place[0];
+			Expression r;
+			return r;
+			break;
 		default:
 			//writeln(e);
 			return e;
@@ -550,8 +584,7 @@ Expression ParsePrefixExpression(Lexer l)
 			ParseMacro(l);
 			break;
 		case TokenType.AT:
-			Place p = ParsePlace(l);
-			places[p.name] = p;
+			e = ParsePlace(l);
 			break;
 		case TokenType.AMPERSAND:
 			e = ParseFunction(l);
@@ -730,6 +763,10 @@ void main(string[] args)
 	while(!l.atEnd())
 	{
 		program ~= ParseExpression(l);
+		//if(!e.exists)
+		//{
+		//	assert(0);
+		//}
 	}
 	FunctionPass();
 	DerefAllTypes();
