@@ -639,7 +639,14 @@ Expression ParseInfixExpression(Lexer l)
 			e.exists = true;
 			break;
 		case TokenType.PAREN_LEFT:
-			e = ParseCall(l, e);
+			if(e.type == ExpressionType.Name)
+			{
+				e = ParseCall(l, e);
+			}
+			else
+			{
+				goto default;
+			}
 			break;
 		default:
 			l.i = origi;

@@ -15,12 +15,12 @@ $ void !;
 	(
 		comprint(arga - argb);
 	)
-);;
+)
 
 & void testfunc(int argo)
 (
 	testfunca(argo, 123);
-);;
+)
 
 (CPU_BITS == 16) ?
 (
