@@ -3,12 +3,19 @@
 $ int #((CPU_BITS == 32) ? 32 : 16);
 $ void !;
 
-& void comprint(int a) (%a)
+& void comprint(int a) (%a);;
 
 & void testfunca(int arga, int argb)
 (
-	((arga - argb) - argb) ? comprint(arga + argb) : comprint(arga - argb);
-)
+	((arga - argb) - argb) ? 
+	(
+		comprint(arga + argb);
+	)
+	:
+	(
+		comprint(arga - argb);
+	)
+);;
 
 & void testfunc(int argo)
 (

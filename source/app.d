@@ -455,9 +455,9 @@ Expression ExpressionEquality(Expression a, Expression b)
 	assert(0);
 }
 
-bool IsTruthy(string value)
+bool IsTruthy(Expression e)
 {
-	return value != "0";
+	return e.type == ExpressionType.Immediate && e.value != "0";
 }
 
 Expression ExecuteExpression(Expression e, Place[string] scop)
@@ -515,7 +515,7 @@ Expression ExecuteExpression(Expression e, Place[string] scop)
 			break;
 		case ExpressionType.Ternary:
 			Expression r = ExecuteExpression(e.inner[0], scop);
-			if(IsTruthy(r.value))
+			if(IsTruthy(r))
 			{
 				return ExecuteExpression(e.inner[1], scop);
 			}
