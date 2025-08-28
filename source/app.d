@@ -193,6 +193,7 @@ enum ExpressionType
 	Equality,
 	Function,
 	Place,
+	Type,
 }
 
 struct Expression
@@ -204,6 +205,7 @@ struct Expression
 	Expression[] call;
 	Function[] func;
 	Place[] place;
+	Type[] grouptype;
 }
 
 struct Macro
@@ -283,6 +285,7 @@ Macro ParseMacro(Lexer l)
 
 struct Type
 {
+	string name;
 	Expression size;
 	Expression[] group;
 	bool isref;
@@ -323,13 +326,9 @@ Type ParseType(Lexer l)
 	}
 	else if(token.type == TokenType.BRACE_LEFT)
 	{
-		ulong origi = l.i;
-		while(token.type != TokenType.BRACE_RIGHT)
+		while(!l.optional(TokenType.BRACE_RIGHT))
 		{
-			l.i = origi;
 			type.group ~= ParseExpression(l);
-			origi = l.i;
-			token = l.next();
 		}
 		return type;
 	}
@@ -356,13 +355,15 @@ Expression ParsePlace(Lexer l)
 	return e;
 }
 
-Type ParseGroup(Lexer l)
+Expression ParseGroup(Lexer l)
 {
-	Type t;
+	Expression e;
 	string name = l.next().name;
-	t = ParseType(l);
-	types[name] = t;
-	return t;
+	e.grouptype ~= ParseType(l);
+	e.grouptype[0].name = name;
+	e.exists = true;
+	e.type = ExpressionType.Type;
+	return e;
 }
 
 Expression ParseNumber(Lexer l, string name)
@@ -566,6 +567,11 @@ Expression ExecuteExpression(Expression e, ref Place[string] scop)
 			Expression r;
 			return r;
 			break;
+		case ExpressionType.Type:
+			types[e.grouptype[0].name] = e.grouptype[0];
+			Expression r;
+			return r;
+			break;
 		default:
 			//writeln(e);
 			return e;
@@ -590,7 +596,7 @@ Expression ParsePrefixExpression(Lexer l)
 			e = ParseFunction(l);
 			break;
 		case TokenType.DOLLAR:
-			ParseGroup(l);
+			e = ParseGroup(l);
 			break;
 		case TokenType.NUMBER:
 			e = ParseNumber(l, t.name);
